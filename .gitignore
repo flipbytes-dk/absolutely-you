@@ -1,0 +1,5 @@
+docs_kb/
+venv/
+.env
+__pycache__/
+*.pyc 
