@@ -23,6 +23,7 @@ from graphiti_core.search.search_config_recipes import (
     COMMUNITY_HYBRID_SEARCH_MMR,
     COMMUNITY_HYBRID_SEARCH_CROSS_ENCODER
 )
+from typing import List
 
 # --- Load environment variables ---
 load_dotenv()
@@ -50,6 +51,26 @@ class SearchResponse(BaseModel):
 class ManualSearchRequest(BaseModel):
     query: str
 
+class ToolCallArguments(BaseModel):
+    query: str
+
+class ToolCall(BaseModel):
+    id: str
+    arguments: ToolCallArguments
+
+class Message(BaseModel):
+    toolCallList: List[ToolCall]
+
+class SearchToolRequest(BaseModel):
+    message: Message
+
+class SearchToolResult(BaseModel):
+    toolCallId: str
+    result: List[dict]
+
+class SearchToolResponse(BaseModel):
+    results: List[SearchToolResult]
+
 # --- Graphiti client (initialized on startup) ---
 graphiti = None
 
@@ -68,14 +89,12 @@ async def shutdown_event():
 node_search_config = NODE_HYBRID_SEARCH_EPISODE_MENTIONS.model_copy(deep=True)
 node_search_config.limit = 5
 
-@app.post("/search")
-async def search_endpoint(request: Request):
+@app.post("/search", response_model=SearchToolResponse)
+async def search_endpoint(req: SearchToolRequest):
     try:
-        body = await request.json()
-        tool_call = body["message"]["toolCallList"][0]
-        arguments = tool_call["arguments"]
-        query = arguments["query"]
-        tool_call_id = tool_call["id"]
+        tool_call = req.message.toolCallList[0]
+        query = tool_call.arguments.query
+        tool_call_id = tool_call.id
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid request format: {e}")
     try:
@@ -98,14 +117,14 @@ async def search_endpoint(request: Request):
             }
             for node in nodes
         ]
-        return {
-            "results": [
-                {
-                    "toolCallId": tool_call_id,
-                    "result": filtered
-                }
+        return SearchToolResponse(
+            results=[
+                SearchToolResult(
+                    toolCallId=tool_call_id,
+                    result=filtered
+                )
             ]
-        }
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Search failed: {e}")
 
