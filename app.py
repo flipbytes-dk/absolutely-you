@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 import os
 import asyncio
@@ -44,12 +44,11 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization", "X-Vapi-Signature"],
 )
 
-class SearchRequest(BaseModel):
-    query: str
-
 class SearchResponse(BaseModel):
     results: list[dict]
-    # results: list
+
+class ManualSearchRequest(BaseModel):
+    query: str
 
 # --- Graphiti client (initialized on startup) ---
 graphiti = None
@@ -69,14 +68,55 @@ async def shutdown_event():
 node_search_config = NODE_HYBRID_SEARCH_EPISODE_MENTIONS.model_copy(deep=True)
 node_search_config.limit = 5
 
+@app.post("/search")
+async def search_endpoint(request: Request):
+    try:
+        body = await request.json()
+        tool_call = body["message"]["toolCallList"][0]
+        arguments = tool_call["arguments"]
+        query = arguments["query"]
+        tool_call_id = tool_call["id"]
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid request format: {e}")
+    try:
+        results = await graphiti._search(
+            query=query,
+            config=node_search_config,
+            group_ids=["absolute_cosmetic_procedures"]
+        )
+        # Extract only the nodes
+        nodes = []
+        for label, items in results:
+            if label == "nodes":
+                nodes = items
+                break
+        filtered = [
+            {
+                "name": getattr(node, "name", None),
+                "group_id": getattr(node, "group_id", None),
+                "summary": getattr(node, "summary", None)
+            }
+            for node in nodes
+        ]
+        return {
+            "results": [
+                {
+                    "toolCallId": tool_call_id,
+                    "result": filtered
+                }
+            ]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Search failed: {e}")
 
-@app.post("/search", response_model=SearchResponse)
-async def search_endpoint(req: SearchRequest):
-    if not req.query:
+@app.post("/search-manual", response_model=SearchResponse)
+async def search_manual_endpoint(req: ManualSearchRequest):
+    query = req.query
+    if not query:
         raise HTTPException(status_code=400, detail="'query' is required.")
     try:
         results = await graphiti._search(
-            query=req.query,
+            query=query,
             config=node_search_config,
             group_ids=["absolute_cosmetic_procedures"]
         )
