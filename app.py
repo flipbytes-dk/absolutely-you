@@ -4,6 +4,7 @@ import os
 import asyncio
 from dotenv import load_dotenv
 from graphiti_core import Graphiti
+from fastapi.middleware.cors import CORSMiddleware
 from graphiti_core.search.search_config_recipes import (
     COMBINED_HYBRID_SEARCH_RRF,     
     COMBINED_HYBRID_SEARCH_MMR, 
@@ -33,6 +34,14 @@ app = FastAPI(
     title="Graphiti Minimal Search API",
     description="Minimal search endpoint using Graphiti. Accepts only a query string.",
     version="0.1.0"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://dashboard.vapi.ai"], # Or ["*"] for testing
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Vapi-Signature"],
 )
 
 class SearchRequest(BaseModel):
