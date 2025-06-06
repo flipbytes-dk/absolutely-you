@@ -231,6 +231,7 @@ async def webhook_search(request: Request):
             for node in nodes
         ]
         logger.info(f"Returning {len(filtered)} results for toolCallId {tool_call_id}")
+        logger.info(f"Results: {filtered}")
         return {
             "results": [
                 {
