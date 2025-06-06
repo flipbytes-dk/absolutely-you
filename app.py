@@ -164,16 +164,50 @@ async def search_manual_endpoint(req: ManualSearchRequest):
 @app.post("/webhook-search")
 async def webhook_search(request: Request):
     try:
-        events = await request.json()
-        logger.info(f"Received events: {events}")
-        event = events[0]
-        body = event["body"]
-        tool_call = body["message"]["toolCallList"][0]
-        tool_call_id = tool_call["id"]
-        query = tool_call["function"]["arguments"]["query"]
+        payload = await request.json()
+        logger.info(f"Received events: {payload}")
+        query = None
+        tool_call_id = None
+
+        # Try to extract from OpenAI tool-calls format (toolCalls or toolCallList)
+        try:
+            # Try toolCalls (list of dicts)
+            tool_calls = None
+            if "message" in payload:
+                if "toolCalls" in payload["message"]:
+                    tool_calls = payload["message"]["toolCalls"]
+                elif "toolCallList" in payload["message"]:
+                    tool_calls = payload["message"]["toolCallList"]
+            if tool_calls and len(tool_calls) > 0:
+                tool_call = tool_calls[0]
+                tool_call_id = tool_call.get("id")
+                function = tool_call.get("function")
+                if function:
+                    arguments = function.get("arguments")
+                    if isinstance(arguments, str):
+                        import json as _json
+                        try:
+                            arguments = _json.loads(arguments)
+                        except Exception as e:
+                            logger.warning(f"Could not parse arguments JSON: {e}")
+                    if isinstance(arguments, dict):
+                        query = arguments.get("query")
+        except Exception as e:
+            logger.warning(f"Could not extract query from toolCalls/toolCallList: {e}")
+
+        # Fallback: direct query field
+        if not query:
+            query = payload.get("query")
+        if not tool_call_id:
+            tool_call_id = payload.get("toolCallId")
+
+        if not query:
+            logger.error("No query found in webhook payload.")
+            return {"error": "No query found in webhook payload."}
+
         logger.info(f"Extracted toolCallId: {tool_call_id}, query: {query}")
     except Exception as e:
-        logger.error(f"Error parsing webhook payload: {e}")
+        logger.exception(f"Error parsing webhook payload: {e}")
         raise HTTPException(status_code=400, detail=f"Invalid webhook format: {e}")
 
     try:
