@@ -24,6 +24,7 @@ from graphiti_core.search.search_config_recipes import (
     COMMUNITY_HYBRID_SEARCH_CROSS_ENCODER
 )
 from typing import List
+import logging
 
 # --- Load environment variables ---
 load_dotenv()
@@ -73,6 +74,9 @@ class SearchToolResponse(BaseModel):
 
 # --- Graphiti client (initialized on startup) ---
 graphiti = None
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("webhook-search")
 
 @app.on_event("startup")
 async def startup_event():
@@ -155,5 +159,53 @@ async def search_manual_endpoint(req: ManualSearchRequest):
         ]
         return {"results": filtered}
     except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Search failed: {e}")
+
+@app.post("/webhook-search")
+async def webhook_search(request: Request):
+    try:
+        events = await request.json()
+        logger.info(f"Received events: {events}")
+        event = events[0]
+        body = event["body"]
+        tool_call = body["message"]["toolCallList"][0]
+        tool_call_id = tool_call["id"]
+        query = tool_call["function"]["arguments"]["query"]
+        logger.info(f"Extracted toolCallId: {tool_call_id}, query: {query}")
+    except Exception as e:
+        logger.error(f"Error parsing webhook payload: {e}")
+        raise HTTPException(status_code=400, detail=f"Invalid webhook format: {e}")
+
+    try:
+        results = await graphiti._search(
+            query=query,
+            config=node_search_config,
+            group_ids=["absolute_cosmetic_procedures"]
+        )
+        # Extract only the nodes
+        nodes = []
+        for label, items in results:
+            if label == "nodes":
+                nodes = items
+                break
+        filtered = [
+            {
+                "name": getattr(node, "name", None),
+                "group_id": getattr(node, "group_id", None),
+                "summary": getattr(node, "summary", None)
+            }
+            for node in nodes
+        ]
+        logger.info(f"Returning {len(filtered)} results for toolCallId {tool_call_id}")
+        return {
+            "results": [
+                {
+                    "toolCallId": tool_call_id,
+                    "result": filtered
+                }
+            ]
+        }
+    except Exception as e:
+        logger.error(f"Search failed: {e}")
         raise HTTPException(status_code=500, detail=f"Search failed: {e}")
 
