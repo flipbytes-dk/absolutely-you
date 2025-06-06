@@ -90,7 +90,7 @@ async def shutdown_event():
     if graphiti:
         await graphiti.close()
 
-node_search_config = NODE_HYBRID_SEARCH_EPISODE_MENTIONS.model_copy(deep=True)
+node_search_config =  NODE_HYBRID_SEARCH_RRF.model_copy(deep=True)
 node_search_config.limit = 5
 
 @app.post("/search", response_model=SearchToolResponse)
