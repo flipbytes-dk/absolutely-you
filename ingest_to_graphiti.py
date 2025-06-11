@@ -25,6 +25,7 @@ from dotenv import load_dotenv
 
 from graphiti_core import Graphiti
 from graphiti_core.nodes import EpisodeType
+from pydantic import BaseModel, Field
 
 # CONFIGURATION
 logging.basicConfig(
@@ -42,6 +43,74 @@ neo4j_user = os.environ.get('NEO4J_USER', 'neo4j')
 neo4j_password = os.environ.get('NEO4J_PASSWORD', 'password')
 
 logger.info(f"Graphiti connection config: uri={neo4j_uri}, user={neo4j_user}")
+
+# Define Pydantic models for the nodes
+class Procedure(BaseModel):
+    """A cosmetic procedure offered by the clinic."""
+    procedure_type: str | None = Field(None, description="Surgical, Non-Surgical …")
+    cost_raw: str | None = Field(None, description="Original cost string, e.g. 'From $5,500'")
+    recovery_time: str | None = Field(None, description="e.g. 'one to two weeks'")
+    results_duration: str | None = Field(None, description="e.g. '3-6 months'")
+
+class BodyArea(BaseModel):
+    """An anatomical region that the procedure treats or alters."""
+    anatomical_region: str | None = Field(None, description="e.g. 'Labia minora'")
+
+class PaymentMethod(BaseModel):
+    """A way the patient can pay for the procedure."""
+    provider: str | None = Field(None, description="'Cash', 'Visa', 'AfterPay' …")
+
+class Doctor(BaseModel):
+    """A medical professional who performs or must authorise the procedure."""
+    speciality: str | None = Field(None, description="e.g. 'Cosmetic Surgeon'")
+
+# Define Pydantic models for the edge types
+class TREATS_AREA(BaseModel):
+    """The procedure targets or reshapes this body area."""
+    notes: str | None = Field(None, description="Any nuance in the text")
+
+class ACCEPTS_PAYMENT(BaseModel):
+    """You can pay for the procedure using this method."""
+    pass          # no extra fields yet
+
+class REQUIRES_REFERRAL(BaseModel):
+    """The procedure requires referral from this doctor."""
+    pass
+
+
+#Finally tell Graphiti which combinations are legal (so the LLM doesn't assign
+#ACCEPTS_PAYMENT to a Doctor by mistake):
+edge_type_map = {
+    ("Procedure", "BodyArea"): ["TREATS_AREA"],
+    ("Procedure", "PaymentMethod"): ["ACCEPTS_PAYMENT"],
+    ("Procedure", "Doctor"): ["REQUIRES_REFERRAL"],
+}
+
+# Turn each JSON blob into something Graphiti can read
+def compress_procedure(record: dict) -> dict:
+    """Strip unused keys and normalise misc payments into a list."""
+    payments = []
+    misc = record.get("miscellaneous_information", "")
+    for token in ["Cash", "Credit Cards", "AfterPay", "Visa", "Mastercard"]:
+        if token.lower() in misc.lower():
+            payments.append(token)
+    record["payments"] = payments
+    return record
+
+# Ontology dictionaries
+entity_types = {
+    "Procedure": Procedure,
+    "BodyArea": BodyArea,
+    "PaymentMethod": PaymentMethod,
+    "Doctor": Doctor,
+}
+
+edge_types = {
+    "TREATS_AREA": TREATS_AREA,
+    "ACCEPTS_PAYMENT": ACCEPTS_PAYMENT,
+    "REQUIRES_REFERRAL": REQUIRES_REFERRAL,
+}
+
 
 
 def get_json_files(directory):
@@ -62,7 +131,7 @@ async def main():
     try:
         await graphiti.build_indices_and_constraints()
         docs_dir = "docs_kb"
-        files = get_json_files(docs_dir)[101:122]
+        files = get_json_files(docs_dir)
 
         logger.info(f"Found {len(files)} files to process in '{docs_dir}'.")
 
@@ -82,11 +151,14 @@ async def main():
                 logger.info(f"Adding episode: name='{episode_name}' from file '{fname}'")
                 episode = await graphiti.add_episode(
                     name=episode_name,
-                    episode_body=json.dumps(episode_body),
+                    episode_body=json.dumps(compress_procedure(episode_body), ensure_ascii=False),
                     source=EpisodeType.json,
                     source_description='procedure metadata',
                     reference_time=datetime.now(timezone.utc),
-                    group_id="absolute_cosmetic_procedures"
+                    group_id="procedures",
+                    entity_types=entity_types,
+                    edge_types=edge_types,
+                    edge_type_map=edge_type_map
                 )
                 # Log the result appropriately
                 if hasattr(episode, 'episodes') and episode.episodes:
@@ -95,7 +167,8 @@ async def main():
                     logger.info(f"[SUCCESS] Added episode from {fname}: {episode}")
                 success_count += 1
             except Exception as e:
-                logger.error(f"[ERROR] Failed to add {fname} (index {i}): {e}")
+                import traceback
+                logger.error(f"[ERROR] Failed to add {fname} (index {i}): {e}\n{traceback.format_exc()}")
                 fail_count += 1
             logger.info(f"[END] Finished processing file {i+1}/{len(files)}: {fname}")
         logger.info(f"Processing complete. Success: {success_count}, Skipped: {skip_count}, Failed: {fail_count}")

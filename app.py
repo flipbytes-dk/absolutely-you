@@ -82,7 +82,7 @@ logger = logging.getLogger("webhook-search")
 async def startup_event():
     global graphiti
     graphiti = Graphiti(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD)
-    await graphiti.build_indices_and_constraints()
+    # await graphiti.build_indices_and_constraints()
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -93,44 +93,6 @@ async def shutdown_event():
 node_search_config =  NODE_HYBRID_SEARCH_RRF.model_copy(deep=True)
 node_search_config.limit = 5
 
-@app.post("/search", response_model=SearchToolResponse)
-async def search_endpoint(req: SearchToolRequest):
-    try:
-        tool_call = req.message.toolCallList[0]
-        query = tool_call.arguments.query
-        tool_call_id = tool_call.id
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid request format: {e}")
-    try:
-        results = await graphiti._search(
-            query=query,
-            config=node_search_config,
-            group_ids=["absolute_cosmetic_procedures"]
-        )
-        # Extract only the nodes
-        nodes = []
-        for label, items in results:
-            if label == "nodes":
-                nodes = items
-                break
-        filtered = [
-            {
-                "name": getattr(node, "name", None),
-                "group_id": getattr(node, "group_id", None),
-                "summary": getattr(node, "summary", None)
-            }
-            for node in nodes
-        ]
-        return SearchToolResponse(
-            results=[
-                SearchToolResult(
-                    toolCallId=tool_call_id,
-                    result=filtered
-                )
-            ]
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Search failed: {e}")
 
 @app.post("/search-manual", response_model=SearchResponse)
 async def search_manual_endpoint(req: ManualSearchRequest):
@@ -141,7 +103,7 @@ async def search_manual_endpoint(req: ManualSearchRequest):
         results = await graphiti._search(
             query=query,
             config=node_search_config,
-            group_ids=["absolute_cosmetic_procedures"]
+            group_ids=["procedures"]
         )
         # Extract only the nodes
         nodes = []
@@ -214,7 +176,7 @@ async def webhook_search(request: Request):
         results = await graphiti._search(
             query=query,
             config=node_search_config,
-            group_ids=["absolute_cosmetic_procedures"]
+            group_ids=["procedures"]
         )
         # Extract only the nodes
         nodes = []
