@@ -13,6 +13,12 @@ Both knowledge bases are available to a Vapi voice AI agent for rich, context-aw
 
 ---
 
+## Environment Variables
+
+Copy `.env.example` to `.env` and fill in your credentials. This file contains the required environment variables for Neo4j and OpenAI API keys used throughout the project.
+
+---
+
 ## Data Collection & Processing
 
 ### 1. Scraping with Firecrawl
@@ -49,16 +55,18 @@ Both knowledge bases are available to a Vapi voice AI agent for rich, context-aw
 - `graph_ingestion_entity.py` — Script to ingest treatments into Graphiti
 - `app.py` — FastAPI app exposing the graph knowledge base
 - `README.md` — This file
+- `.env.example` — Example environment variable file
 
 ---
 
 ## How to Use
 
-1. **Scrape Data**: Use the provided scraper scripts to extract JSON from the Absolutely Cosmetic website.
-2. **Combine Concerns**: Run `python combine_concerns_to_md.py` to generate the vector DB markdown.
-3. **Ingest Treatments**: Run `python graph_ingestion_entity.py` to populate the Graphiti graph database.
-4. **Start API**: Run `uvicorn app:app --reload` to start the FastAPI server.
-5. **Integrate with Vapi**: Point your Vapi voice AI agent to the FastAPI endpoint for graph-based queries, and to the vector DB for concern-based queries.
+1. **Copy Environment Variables**: Copy `.env.example` to `.env` and fill in your credentials.
+2. **Scrape Data**: Use the provided scraper scripts to extract JSON from the Absolutely Cosmetic website.
+3. **Combine Concerns**: Run `python combine_concerns_to_md.py` to generate the vector DB markdown.
+4. **Ingest Treatments**: Run `python graph_ingestion_entity.py` to populate the Graphiti graph database.
+5. **Start API**: Run `uvicorn app:app --reload` to start the FastAPI server.
+6. **Integrate with Vapi**: Point your Vapi voice AI agent to the FastAPI endpoint for graph-based queries, and to the vector DB for concern-based queries.
 
 ---
 
