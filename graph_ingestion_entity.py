@@ -49,38 +49,6 @@ class Doctor(BaseModel):
     """A medical professional who performs or must authorise the procedure."""
     speciality: str | None = Field(None, description="e.g. 'Cosmetic Surgeon'")
 
-# Define Pydantic models for the edge types
-# class TREATS_AREA(BaseModel):
-#     """The procedure targets or reshapes this body area."""
-#     notes: str | None = Field(None, description="Any nuance in the text")
-
-# class ACCEPTS_PAYMENT(BaseModel):
-#     """You can pay for the procedure using this method."""
-#     pass          # no extra fields yet
-
-# class REQUIRES_REFERRAL(BaseModel):
-#     """The procedure requires referral from this doctor."""
-#     pass
-
-
-#Finally tell Graphiti which combinations are legal (so the LLM doesn't assign
-#ACCEPTS_PAYMENT to a Doctor by mistake):
-# edge_type_map = {
-#     ("Procedure", "BodyArea"): ["TREATS_AREA"],
-#     ("Procedure", "PaymentMethod"): ["ACCEPTS_PAYMENT"],
-#     ("Procedure", "Doctor"): ["REQUIRES_REFERRAL"],
-# }
-
-# Turn each JSON blob into something Graphiti can read
-# def compress_procedure(record: dict) -> dict:
-#     """Strip unused keys and normalise misc payments into a list."""
-#     payments = []
-#     misc = record.get("miscellaneous_information", "")
-#     for token in ["Cash", "Credit Cards", "AfterPay", "Visa", "Mastercard"]:
-#         if token.lower() in misc.lower():
-#             payments.append(token)
-#     record["payments"] = payments
-#     return record
 
 # Ontology dictionaries
 entity_types = {
@@ -89,12 +57,6 @@ entity_types = {
     "PaymentMethod": PaymentMethod,
     "Doctor": Doctor,
 }
-
-# edge_types = {
-#     "TREATS_AREA": TREATS_AREA,
-#     "ACCEPTS_PAYMENT": ACCEPTS_PAYMENT,
-#     "REQUIRES_REFERRAL": REQUIRES_REFERRAL,
-# }
 
 
 
