@@ -1,65 +1,67 @@
-# Absolutely You: Procedure Markdown Generator
+# Absolutely Cosmetic Knowledge Base Pipeline
 
-This project provides a Python script to extract structured cosmetic procedure data from JSON files and combine them into a single, human-readable markdown file.
+This repository contains the data pipeline and API for building a multi-modal knowledge base for Absolutely Cosmetic, powering a Vapi voice AI agent.
 
-## Project Description
+## Overview
 
-- **Purpose:** Aggregate structured data about cosmetic procedures (scraped from the web) into a single markdown document for easy review, sharing, or further processing.
-- **Input:** Individual JSON files (not included in this repo) in a `docs_kb/` directory, each containing a `json` field with procedure details.
-- **Output:** A single `procedures.md` file in the project root, with each procedure formatted as a markdown section.
+We have scraped and processed two types of knowledge from the Absolutely Cosmetic website:
 
-## Data Pipeline Overview
+- **Treatments**: All treatment pages were scraped and ingested into a graph database (Graphiti).
+- **Concerns**: All concern pages were scraped, combined, and used as a vector database knowledge base.
 
-### 1. Scraping Structured Data from the Web
+Both knowledge bases are available to a Vapi voice AI agent for rich, context-aware conversational experiences.
 
-- **Tool:** [Firecrawl Python SDK](https://github.com/firecrawl/firecrawl-python)
-- **Schema:** A Pydantic schema (`ExtractSchema`) defines the fields to extract (procedure_name, explanation, treatment_overview, procedure_type, cost, recovery_time, results_duration, miscellaneous_information).
-- **Process:**
-  - Crawl the target website for procedure URLs using `app.map_url()`.
-  - For each URL, extract structured data using `app.scrape_url()` with the schema and save the result as a JSON file in `docs_kb/`.
-  - All discovered links are saved to `all_links.json` for inspection.
-  - Non-serializable fields are filtered out for robust JSON output.
+---
 
-### 2. Generating a Combined Markdown File
+## Data Collection & Processing
 
-- **Script:** `generate_procedures_md.py`
-- **Function:** Reads all `.json` files in `docs_kb/`, extracts the `json` field, and writes a combined, well-formatted `procedures.md` file.
-- **Format:** Each procedure is a top-level heading with subheadings for each field and includes the source URL as metadata.
+### 1. Scraping with Firecrawl
+- We used the JSON extraction mode of [Firecrawl](https://firecrawl.dev/) to scrape both treatments and concerns from the Absolutely Cosmetic website.
+- The scraping scripts are provided in the repository:
+  - `scraper.py` and related scripts for treatments
+  - `concerns_scraper.py` for concerns
 
-### 3. Ingesting Data into Graphiti/Neo4j
+### 2. Concerns Knowledge Base (Vector DB)
+- All concern JSON files were combined using `combine_concerns_to_md.py`.
+- The combined markdown is used as a vector database knowledge base for the Vapi voice AI agent.
+- This enables semantic search and retrieval for user queries about cosmetic concerns.
 
-- **Script:** `ingest_to_graphiti.py` (not included in the repo by default, but referenced for workflow)
-- **Setup:**
-  - Requires environment variables for Neo4j connection (`NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD`).
-  - Uses the `graphiti-core` Python SDK.
-- **Process:**
-  - Iterates over the JSON files, extracting the `json` field for each procedure.
-  - Each procedure is ingested as an "episode" in Graphiti, with robust error handling (skipping files with missing/invalid data, logging errors, and continuing processing).
-  - Metadata and grouping are handled as required by the Graphiti data model.
+### 3. Treatments Knowledge Base (Graph DB)
+- All treatment JSON files were ingested into [Graphiti](https://github.com/getzep/graphiti) using `graph_ingestion_entity.py`.
+- This creates a temporal, entity-rich knowledge graph of all treatments, their properties, and relationships.
+- The graph knowledge base supports advanced graph and semantic queries.
 
-> **Note:** The Jupyter notebook `ingest_to_graphiti.ipynb` is not part of the repo or the recommended workflow. Use the standalone script for ingestion.
+---
 
-## Usage
+## API: FastAPI Graphiti Endpoint
 
-1. Place your JSON files in a `docs_kb/` directory (excluded from this repo).
-2. Run the script:
+- The graph knowledge base is exposed as a FastAPI API in `app.py`.
+- The API provides endpoints for hybrid semantic/graph search over the treatments knowledge base.
+- The Vapi voice AI agent queries this API to answer user questions about treatments, procedures, and their relationships.
 
-```bash
-python generate_procedures_md.py
-```
+---
 
-3. The script will create or overwrite `procedures.md` in the project root.
+## Project Structure
 
-## Requirements
+- `docs_kb/` — Scraped treatment JSON files
+- `docs_concerns_kb/` — Scraped concern JSON files
+- `combine_concerns_to_md.py` — Script to combine concerns into a markdown/vector DB
+- `graph_ingestion_entity.py` — Script to ingest treatments into Graphiti
+- `app.py` — FastAPI app exposing the graph knowledge base
+- `README.md` — This file
 
-- Python 3.7+
-- No external dependencies (uses only the Python standard library)
+---
 
-## Notes
+## How to Use
 
-- The script ignores `docs_kb/`, `venv/`, `.env`, and other sensitive or unnecessary files.
-- Do **not** commit scraped data or secrets to this repository.
+1. **Scrape Data**: Use the provided scraper scripts to extract JSON from the Absolutely Cosmetic website.
+2. **Combine Concerns**: Run `python combine_concerns_to_md.py` to generate the vector DB markdown.
+3. **Ingest Treatments**: Run `python graph_ingestion_entity.py` to populate the Graphiti graph database.
+4. **Start API**: Run `uvicorn app:app --reload` to start the FastAPI server.
+5. **Integrate with Vapi**: Point your Vapi voice AI agent to the FastAPI endpoint for graph-based queries, and to the vector DB for concern-based queries.
 
-## License
+---
 
-[Apache 2.0](LICENSE) 
+## About Absolutely Cosmetic
+
+Absolutely Cosmetic is a leading provider of cosmetic treatments and procedures. This project enables advanced, AI-powered conversational access to the clinic's expertise, leveraging both vector and graph knowledge bases for best-in-class user experience. 
